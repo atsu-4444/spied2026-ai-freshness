@@ -1,105 +1,478 @@
 # SP!ED 2026 - AI Food Freshness Priority Scanner
 
-[日本語](README_ja.md)
+**English** | [日本語](README_ja.md)
 
-Software-only portfolio version of the AI component developed for our **SP!ED 2026** smart refrigerator prototype.
+<p>
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch">
+  <img src="https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white" alt="OpenCV">
+  <img src="https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black" alt="Hugging Face">
+</p>
 
-The original prototype combined an AI camera, freshness-based priority logic, Arduino motor control, and a rotary shelf. The system scanned food stored in multiple sections, decided which item should be checked first, and physically rotated the selected section toward the user.
+A **smart refrigerator prototype that recognizes food items with AI and presents the food that should be checked next**.
 
-> **Demo:** The README is intended to use a GIF/video of the original on-site prototype in `assets/`. The hardware shown in that demo is **not** reproduced by this repository.
+This project was developed as part of an international team project at **[SP!ED 2026](https://ire-asia.org/ire/spied/)**.  
+During the program, we developed a system that combines AI-based food condition recognition with a rotary shelf, allowing the system to move the section that should be checked toward the user according to the detected food condition.
 
-<!--
-After adding the on-site demo as assets/demo.gif, uncomment:
-![SP!ED 2026 prototype demo](assets/demo.gif)
--->
+I was mainly responsible for the **implementation and validation of the AI-based food condition recognition component**.
 
-## Repository Scope
+This repository provides a **PC-oriented portfolio version** that combines manual 4-slot scanning with Priority Logic so that the core AI workflow can be tested without Arduino, motors, or the physical rotary shelf.
 
-This repository reproduces the **AI recognition and priority-decision flow** with only a PC and webcam.
+<p align="center">
+  <img src="assets/refrigerator-inside.png" width="850" alt="SP!ED 2026 smart refrigerator prototype">
+</p>
 
-```text
-Original SP!ED 2026 prototype
+---
 
-Camera -> AI recognition -> Priority decision -> Arduino -> Motor -> Rotary shelf
-                                      |
-                                      +---- selected slot moves to the user
+## 📖 Project Overview
 
-GitHub portfolio version
+After food is placed in a refrigerator, items stored farther toward the back can become difficult to see and may eventually be forgotten.
 
-Webcam -> Manual 4-slot scan -> AI recognition -> Priority decision -> Target slot display
-                 (ENTER)                                  |
-                                                          +---- no hardware control
-```
-
-The physical carousel, Arduino communication, and stepper-motor control are intentionally excluded.
-
-## How the Portfolio Demo Works
-
-The motorized slot movement from the original prototype is replaced by a simple manual scan workflow:
-
-1. Start the application and show the first food item to the webcam.
-2. Press **ENTER** to scan **Slot 1**.
-3. The app performs repeated recognition for 3 seconds and stores the majority-vote result.
-4. Repeat for **Slots 2, 3, and 4**.
-5. After Slot 4, the app compares all four conditions and displays the slot that should be **checked first**.
-6. Press **ENTER** once to reset the result.
-7. Press **ENTER** again to begin a new scan from Slot 1.
-
-Press **Q** or **ESC** at any time to quit.
-
-## Priority Logic
-
-The portfolio version keeps the freshness-priority concept used in the prototype:
+This is particularly relevant for fresh foods such as fruits and vegetables, whose condition cannot always be determined only from an expiration date or barcode.  
+Because their condition often needs to be checked visually, food stored in the back of the refrigerator can follow a pattern such as:
 
 ```text
-ROTTEN  >  RIPE  >  FRESH
-highest                    lowest
-priority                   priority
+Stored
+  ↓
+Hidden
+  ↓
+Forgotten
+  ↓
+Loss of freshness / Food waste
 ```
 
-The third-party model uses slightly different condition names depending on the food type. For the priority decision, labels are normalized as follows:
+To address this issue, this project was designed around the idea:
 
-| Model label pattern | Priority group |
+**"Instead of making the user search for food, the system presents the food that should be checked."**
+
+We developed a smart refrigerator storage system that combines an AI camera with a rotary shelf.
+
+---
+
+## 💡 Problem We Wanted to Solve
+
+A conventional refrigerator can store food, but it does not tell the user **which item should be checked first**.
+
+The back of a refrigerator in particular can become a "hidden area" where:
+
+- food is difficult to see,
+- users may forget what they stored,
+- users need to reach into the back repeatedly,
+- changes in food condition can be overlooked.
+
+To address this, we designed the following workflow:
+
+```text
+Camera
+  ↓
+AI Recognition
+  ↓
+Priority Decision
+  ↓
+Physical Action
+  ↓
+Present the target slot to the user
+```
+
+The goal of the project was not simply to classify food with AI, but to **connect recognition results to real-world physical actions**.
+
+---
+
+## 🏗️ System Architecture
+
+The original system developed for SP!ED 2026 combines AI and hardware.
+
+```text
+Camera
+  │
+  └─ Capture each slot
+        ↓
+AI Model
+  │
+  └─ Recognize food type and condition
+        ↓
+Priority Decision
+  │
+  └─ Determine which slot should be checked
+        ↓
+Arduino
+  │
+  └─ Control the stepper motor
+        ↓
+Rotary Shelf
+  │
+  └─ Rotate the target slot toward the user
+```
+
+<p align="center">
+  <img src="assets/rotary-shelf.png" width="430" alt="Rotary shelf prototype">
+</p>
+
+---
+
+## 🎛️ Two Modes in the Original Prototype
+
+### 1 PUSH - Freshness Scan
+
+When the button is pressed once, the system captures each slot in sequence and the AI recognizes the food type and condition.
+
+Based on the recognition results, the system calculates priority and selects the **slot containing the food that should be checked first**.
+
+The Arduino then controls the stepper motor and rotates the target slot toward the user.
+
+```text
+Scan
+  ↓
+Food / Condition Recognition
+  ↓
+Priority Decision
+  ↓
+Target Slot
+  ↓
+Rotation
+```
+
+### 2 PUSH - Empty Slot Mode
+
+When the button is pressed twice, the system switches to a mode that **moves an empty slot toward the user so that new food can be stored**.
+
+For this prototype, we did not use a model trained with a dedicated `Empty` class.
+
+During testing with the physical prototype, we observed that when the camera captured a background or an out-of-scope object instead of one of the target fruits or vegetables, the model tended to classify the image as **`Rotten Cucumber`**.
+
+Based on this behavior, we introduced the following constraints:
+
+- **Cucumbers are not used** in the physical slots.
+- A slot classified as `Rotten Cucumber` is treated as a **candidate Empty Slot**.
+
+```text
+Camera
+  ↓
+Food Classification Model
+  ↓
+Rotten Cucumber
+  ↓
+Treat as Empty Slot
+  ↓
+Rotate the target slot toward the user
+```
+
+This is a **heuristic implementation** that takes advantage of the behavior of the existing model during rapid prototype development.
+
+It is not a general-purpose Empty Slot Detection method. It is a **prototype-specific approach based on the assumption that cucumbers are not used in the actual slots**.
+
+---
+
+## 💻 GitHub Portfolio Version
+
+This GitHub repository allows the AI portion of the project to be tested without Arduino, motors, or other hardware.
+
+The physical prototype's "slot switching by rotating the shelf" has been replaced with **manual scanning using the ENTER key**.
+
+```text
+Webcam
+  ↓
+Scan Slot 1
+  ↓
+Scan Slot 2
+  ↓
+Scan Slot 3
+  ↓
+Scan Slot 4
+  ↓
+Priority Decision
+  ↓
+CHECK FIRST
+```
+
+After the four slots are registered in sequence, the application displays which slot should be checked first based on the AI recognition results.
+
+The GitHub version focuses on the original prototype's **1 PUSH - Freshness Scan / Priority Decision** workflow.  
+The Empty Slot Mode and physical rotation control are not implemented in this repository.
+
+---
+
+## 🎬 Demonstration
+
+This is a demonstration of the physical prototype developed during SP!ED 2026.
+
+<p align="center">
+  <img src="assets/demonstration.gif" width="760" alt="SP!ED 2026 prototype demonstration">
+</p>
+
+The GIF shows part of the physical prototype operation, including both **Freshness Scan and Empty Slot Mode**.
+
+**[▶ Watch the full demonstration video](assets/demo-video.mp4)**
+
+The full video mainly demonstrates food condition recognition, Priority Decision, and the physical movement of the rotary shelf.  
+Note: the full video does **not** include the `2 PUSH - Empty Slot Mode` operation.
+
+---
+
+## 🔍 4-Slot Priority Scanner
+
+In the GitHub version, four virtual slots are scanned one by one.
+
+### Workflow
+
+1. Show a food item to the webcam.
+2. Press **ENTER** to scan Slot 1.
+3. AI inference is performed on multiple frames for 3 seconds.
+4. The final result for Slot 1 is determined by Majority Vote.
+5. Repeat the same process for Slot 2, Slot 3, and Slot 4.
+6. Once all four slots are registered, the Priority Logic is executed.
+7. The slot that should be checked first is displayed as **CHECK FIRST**.
+8. Press **ENTER** on the result screen to reset the session.
+9. Press **ENTER** again to restart scanning from Slot 1.
+
+Press **Q** or **ESC** to exit.
+
+---
+
+## 🧠 AI-Based Food Condition Recognition
+
+For image classification, this project uses a pretrained ViT-based model published on Hugging Face.
+
+**[Dhahlan2000/freshness_detector_updated](https://huggingface.co/Dhahlan2000/freshness_detector_updated)**
+
+The model performs **30-class classification** for 10 food types, including their condition.
+
+### Supported Foods
+
+| Food | Condition |
+| --- | --- |
+| Bell Pepper | Fresh / Intermediate Fresh / Rotten |
+| Carrot | Fresh / Intermediate Fresh / Rotten |
+| Cucumber | Fresh / Intermediate Fresh / Rotten |
+| Potato | Fresh / Intermediate Fresh / Rotten |
+| Tomato | Fresh / Intermediate Fresh / Rotten |
+| Apple | Unripe / Ripe / Rotten |
+| Banana | Unripe / Ripe / Rotten |
+| Mango | Unripe / Ripe / Rotten |
+| Orange | Unripe / Ripe / Rotten |
+| Strawberry | Unripe / Ripe / Rotten |
+
+The model is downloaded automatically from Hugging Face on the first run.
+
+The model files are stored under:
+
+```text
+models/freshness_detector_updated/
+```
+
+and are excluded from Git tracking.
+
+---
+
+## ⚖️ Priority Logic
+
+To compare food conditions, the model output labels are converted into three Priority Groups.
+
+```text
+ROTTEN
+  ↓
+RIPE
+  ↓
+FRESH
+```
+
+The priority order is:
+
+```text
+ROTTEN > RIPE > FRESH
+```
+
+| Model Label | Priority Group |
 | --- | --- |
 | `rotten` | `ROTTEN` |
-| `ripe`, `intermediate_fresh` | `RIPE` |
-| `fresh`, `unripe` | `FRESH` |
+| `ripe` | `RIPE` |
+| `intermediate_fresh` | `RIPE` |
+| `fresh` | `FRESH` |
+| `unripe` | `FRESH` |
 
-If multiple slots have the same priority, the lower slot number is selected. Model confidence is **not** treated as a spoilage-severity score.
+Among the four slots, the one with the highest priority is displayed as **CHECK FIRST**.
 
-## Stable Recognition
+If multiple slots have the same priority, the lower slot number is selected to keep the result deterministic.
 
-A single webcam frame can be affected by blur, autofocus, hand movement, or lighting. Each ENTER press therefore starts a short repeated-recognition window instead of classifying only one frame.
+The classification Confidence score is not used for priority comparison because it does not represent the "degree of spoilage."
 
-During the 3-second scan:
+---
+
+## 🔁 Stable Recognition
+
+Using only a single webcam frame can make predictions sensitive to factors such as:
+
+- camera shake,
+- autofocus,
+- lighting,
+- food orientation,
+- temporary misclassification.
+
+To improve stability, the GitHub version performs inference on multiple frames during each scan and determines the final slot result using Majority Vote.
 
 ```text
-Frame predictions
-      ↓
-Repeated inference
-      ↓
-Majority vote
-      ↓
-Stored slot result
+Frame 1 ─┐
+Frame 2 ─┤
+Frame 3 ─┤
+   ...   ├─→ Majority Vote → Slot Result
+Frame N ─┘
 ```
 
-If two labels receive the same number of votes, the label with the higher mean classification confidence is selected.
+Only when the vote count is tied is the average Confidence of each candidate used as a tiebreaker.
 
-## Features
+---
 
-- Webcam-based 4-slot scanning
-- ENTER-controlled scan/reset workflow
-- ViT image classification using `Dhahlan2000/freshness_detector_updated`
-- Automatic model download on first run
-- Repeated recognition and majority voting for each slot
-- Freshness-priority decision across four scanned slots
-- Clear `CHECK FIRST` target visualization
-- CUDA acceleration when available, with CPU fallback
-- No Arduino or motor hardware required
+## ✨ Main Features
 
-## Setup
+### 📷 Webcam Scan
 
-### 1. Create an environment
+Captures food in real time using a PC webcam.
+
+- Register four slots sequentially
+- Start scanning with the ENTER key
+- Real-time AI inference
+
+### 🧠 Food Condition Classification
+
+Classifies both food type and condition using ViT.
+
+- 10 food types
+- 30-class classification
+- Automatic CPU / GPU selection
+
+### 🔁 Repeated Recognition
+
+Performs multiple inference runs for 3 seconds per slot.
+
+- Multi-frame inference
+- Majority Vote
+- Average Confidence used only for tied votes
+
+### ⚖️ Priority Decision
+
+Compares the four slots and determines which food should be checked first.
+
+- `ROTTEN > RIPE > FRESH`
+- CHECK FIRST display
+- Confidence is not treated as a spoilage score
+
+---
+
+## 🛠️ Technologies Used
+
+### AI / Deep Learning
+
+- Python
+- PyTorch
+- TorchVision
+- Transformers
+- Hugging Face Hub
+- Vision Transformer (ViT)
+
+### Computer Vision
+
+- OpenCV
+- Pillow
+- NumPy
+
+### Original Prototype
+
+- USB Camera
+- Arduino
+- Stepper Motor
+- Rotary Shelf
+
+### Development
+
+- Git
+- GitHub
+- Anaconda / Conda
+
+---
+
+## 👨‍💻 My Contribution
+
+I was mainly responsible for the **implementation and validation of the AI-based food condition recognition component**.
+
+In particular, I worked on:
+
+- food condition classification using a pretrained ViT model,
+- real-time inference using a webcam,
+- visualization of inference results with OpenCV,
+- validation of the AI recognition component in the physical prototype.
+
+For the GitHub portfolio version, I also restructured the project so that the core AI workflow can be experienced without the physical hardware, including:
+
+- 4-slot scanning,
+- Repeated Recognition,
+- Majority Vote,
+- Priority Logic,
+- CHECK FIRST display,
+- automatic model download,
+- Unit Tests.
+
+---
+
+## 🚧 Challenges During Development
+
+### Connecting AI Recognition to Physical Actions
+
+In this project, the AI does not simply classify food. The system also needs to decide **which slot should be moved** based on the recognition result.
+
+Therefore, the overall system was designed as the following sequence:
+
+```text
+Recognition
+   ↓
+Decision
+   ↓
+Motor Control
+   ↓
+Physical Action
+```
+
+### Handling Empty Slots Without an Empty Class
+
+The food classification model used in this project does not include a dedicated Empty Slot class.
+
+However, during testing with the physical prototype, we observed that backgrounds or out-of-scope objects with no food present tended to be classified as `Rotten Cucumber`.
+
+We therefore introduced the constraint that **cucumbers would not be used in the physical slots**, and used `Rotten Cucumber` as a proxy label for an Empty Slot.
+
+This was a prototype-level workaround that takes advantage of the model's misclassification tendency. It is not a general-purpose empty-slot detection method.
+
+### Stabilizing Recognition Results
+
+Real-time webcam predictions can fluctuate due to lighting, food orientation, and other environmental factors.
+
+The GitHub version therefore avoids relying on a single frame and instead uses repeated inference and Majority Vote to stabilize the final prediction.
+
+### Making the Project Reproducible Without Hardware
+
+Because the original system requires a rotary shelf and Arduino, third parties cannot easily reproduce it as-is.
+
+The GitHub version therefore replaces:
+
+```text
+Physical Slot Rotation
+        ↓
+Manual ENTER Scan
+```
+
+allowing the core workflow to be tested using only a standard PC and webcam.
+
+---
+
+## 🚀 Run Locally
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/atsu-4444/spied2026-ai-freshness.git
+cd spied2026-ai-freshness
+```
+
+### 2. Create a Virtual Environment
 
 Python 3.11 is recommended.
 
@@ -108,76 +481,124 @@ conda create -n spied2026-freshness python=3.11
 conda activate spied2026-freshness
 ```
 
-### 2. Install dependencies
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Run
+### 4. Run the Application
 
 ```bash
 python app.py
 ```
 
-The model is downloaded from Hugging Face to `models/freshness_detector_updated/` on the first run.
+On the first launch, the model is automatically downloaded from Hugging Face.
 
-If the wrong webcam opens, change `CAMERA_ID` in `src/config.py`.
+A dedicated GPU is not required.  
+If a CUDA-compatible GPU is available, the application will use it automatically; otherwise, it will run on CPU.
 
-### Optional: run logic tests
+If the wrong webcam is opened, change the following setting in `src/config.py`:
+
+```python
+CAMERA_ID = 0
+```
+
+---
+
+## ⌨️ Controls
+
+| Key | Action |
+| --- | --- |
+| `ENTER` | Scan the current slot |
+| `ENTER` after results are shown | Reset the session |
+| `ENTER` after reset | Restart scanning from Slot 1 |
+| `Q` / `ESC` | Exit |
+
+---
+
+## 🧪 Test
+
+Priority Logic and Majority Vote can be verified with Unit Tests.
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-## Controls
+---
 
-| Key | Action |
-| --- | --- |
-| `ENTER` | Start scanning the current slot |
-| `ENTER` after 4-slot result | Reset the session |
-| `ENTER` after reset | Start the next Slot 1 scan |
-| `Q` / `ESC` | Quit |
-
-## Project Structure
+## 📁 Directory Structure
 
 ```text
 spied2026-ai-freshness/
-├── app.py                 # Application loop and scan state machine
+├── app.py
+│
 ├── src/
-│   ├── camera.py          # Webcam capture
-│   ├── classifier.py      # ViT inference / model download
-│   ├── config.py          # Camera, scan, and GUI settings
-│   ├── freshness.py       # Label normalization, voting, priority logic
-│   └── gui.py             # OpenCV dashboard
-├── assets/                # Add the original on-site demo here
+│   ├── __init__.py
+│   ├── camera.py
+│   ├── classifier.py
+│   ├── config.py
+│   ├── freshness.py
+│   └── gui.py
+│
 ├── tests/
-│   └── test_freshness.py  # Priority/voting logic tests
-├── models/                # Downloaded at runtime (not committed)
+│   └── test_freshness.py
+│
+├── assets/
+│   ├── refrigerator-inside.png
+│   ├── rotary-shelf.png
+│   ├── demonstration.gif
+│   └── demo-video.mp4
+│
+├── models/
+│   └── freshness_detector_updated/
+│
 ├── requirements.txt
-├── THIRD_PARTY_NOTICES.md
-├── LICENSE
 ├── README.md
-└── README_ja.md
+├── README_ja.md
+└── LICENSE
 ```
 
-## Original SP!ED 2026 Prototype
+The `models/` directory is generated automatically on the first run and is excluded from Git tracking.
 
-The original project addressed a simple refrigerator problem: food stored deeper inside can become difficult to notice, be forgotten, and eventually be wasted. Our prototype used AI recognition together with a rotary shelf so that the system could move a relevant section toward the user instead of requiring the user to search every section manually.
+---
 
-The prototype included two concepts:
+## 🎓 SP!ED 2026
 
-- **Eat First / Priority mode:** scan food condition and bring the higher-priority section forward.
-- **Empty Slot mode:** identify an empty section and bring it forward for newly purchased food.
+This project was developed as an international team project at **[SP!ED 2026](https://ire-asia.org/ire/spied/)**.
 
-This repository focuses on the first concept. Empty-slot detection and all physical control are outside the scope of this GitHub version.
+Working with students from different countries, technical backgrounds, and language environments, we created a prototype that applies AI to a practical everyday-life problem.
 
-## Notes on the Model
+To address the problem that:
 
-The current portfolio code uses the label set exposed by the third-party checkpoint at runtime. The checkpoint contains 30 classes across 10 food types and condition variants. The UI shows both the food name and the normalized priority group.
+**"Food can become hidden and forgotten inside a refrigerator,"**
 
-Model weights are not included in this repository. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+we proposed and developed a smart refrigerator storage system combining:
 
-## License
+```text
+AI Recognition
+      +
+Priority Decision
+      +
+Rotary Shelf
+```
 
-The source code in this repository is provided under the MIT License. Third-party model weights and assets are governed by their respective terms.
+---
+
+## ⚠️ Disclaimer
+
+This repository is a prototype intended for educational, research, and portfolio purposes.
+
+AI classification results do not guarantee the actual safety, quality, edibility, or expiration status of food.
+
+When determining whether food is safe to eat, also consider storage conditions, expiration dates, smell, appearance, and other relevant information.
+
+In addition, this GitHub version does not include the Arduino, motor, rotary shelf, or other hardware control used in the original physical prototype.
+
+The `Rotten Cucumber` rule used in the Empty Slot Mode is also a prototype-specific heuristic based on model behavior observed during testing with the physical system. It does not guarantee general-purpose empty-slot detection performance.
+
+---
+
+## 📄 License
+
+This project is licensed under the terms of the [LICENSE](LICENSE) file.
