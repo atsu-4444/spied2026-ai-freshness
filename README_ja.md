@@ -303,10 +303,7 @@ GitHub版では、4つの仮想スロットを順番にスキャンします。
 
 画像分類には、Hugging Faceで公開されているViTベースの学習済みモデルを利用しています。
 
-
-```text
-Dhahlan2000/freshness_detector_updated
-```
+**[Dhahlan2000/freshness_detector_updated](https://huggingface.co/Dhahlan2000/freshness_detector_updated)**
 
 
 モデルは10種類の食品について、状態を含めた**30クラス分類**を行います。
@@ -334,7 +331,9 @@ Dhahlan2000/freshness_detector_updated
 
 モデルファイルは、
 
-**[Dhahlan2000/freshness_detector_updated](https://huggingface.co/Dhahlan2000/freshness_detector_updated)**
+```text
+models/freshness_detector_updated/
+```
 
 
 に保存され、Gitの管理対象には含めていません。
